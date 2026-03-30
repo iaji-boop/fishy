@@ -7,13 +7,12 @@
     <style>
       :root {
         color-scheme: dark;
-        --panel-bg: rgba(6, 19, 30, 0.92);
+        --panel-bg: rgba(6, 19, 30, 0.94);
         --panel-border: #9bd8f3;
         --panel-shadow: rgba(0, 0, 0, 0.45);
         --text-primary: #eff7ff;
         --text-secondary: #8bc4dd;
         --accent: #f3c96e;
-        --accent-muted: #365d77;
       }
 
       * {
@@ -29,7 +28,6 @@
         background: #020611;
         color: var(--text-primary);
         font-family: "Courier New", monospace;
-        user-select: none;
       }
 
       body {
@@ -55,7 +53,7 @@
       }
 
       body[data-platform="web"] #drag-region,
-      body[data-platform="web"] #always-on-top-control {
+      body[data-platform="web"] #always-on-top-row {
         display: none;
       }
 
@@ -72,7 +70,6 @@
         background: rgba(7, 15, 24, 0.9);
         border: 2px solid #c1efff;
         box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
-        color: #f4fbff;
         font-size: 11px;
         line-height: 1;
         white-space: nowrap;
@@ -84,10 +81,35 @@
         opacity: 1;
       }
 
+      #toast-stack {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        display: grid;
+        gap: 8px;
+        pointer-events: none;
+      }
+
+      .toast {
+        padding: 8px 10px;
+        font-size: 12px;
+        background: rgba(7, 15, 24, 0.92);
+        border: 2px solid #d2f5ff;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transform: translateY(-8px);
+        transition: opacity 180ms ease, transform 180ms ease;
+      }
+
+      .toast.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
       #settings-host {
         position: fixed;
-        right: 16px;
-        bottom: 16px;
+        right: 14px;
+        bottom: 14px;
         display: flex;
         align-items: flex-end;
         gap: 12px;
@@ -99,64 +121,23 @@
         height: 42px;
         border: 2px solid #d0f6ff;
         padding: 0;
-        background:
-          linear-gradient(180deg, #173750 0%, #0a1b2a 100%);
-        box-shadow:
-          inset 0 0 0 2px rgba(255, 255, 255, 0.08),
-          0 6px 18px rgba(0, 0, 0, 0.35);
+        background: linear-gradient(180deg, #173750 0%, #0a1b2a 100%);
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08), 0 6px 18px rgba(0, 0, 0, 0.35);
         cursor: pointer;
       }
 
-      #gear-button:hover {
-        border-color: #ffe2a7;
-      }
-
-      .gear-mark {
-        position: relative;
-        display: block;
-        width: 100%;
-        height: 100%;
-      }
-
-      .gear-mark::before,
-      .gear-mark::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        margin: auto;
-      }
-
-      .gear-mark::before {
-        width: 18px;
-        height: 18px;
-        background:
-          linear-gradient(90deg, transparent 0 4px, #d6f7ff 4px 6px, transparent 6px 12px, #d6f7ff 12px 14px, transparent 14px 100%),
-          linear-gradient(0deg, transparent 0 4px, #d6f7ff 4px 6px, transparent 6px 12px, #d6f7ff 12px 14px, transparent 14px 100%),
-          linear-gradient(180deg, transparent 0 1px, #d6f7ff 1px 17px, transparent 17px 100%);
-        transform: rotate(22.5deg);
-      }
-
-      .gear-mark::after {
-        width: 8px;
-        height: 8px;
-        background: #0a1825;
-        border: 2px solid #ffe2a7;
-      }
-
       #settings-panel {
-        width: 250px;
-        padding: 14px 14px 12px;
+        width: 328px;
+        max-height: 82vh;
+        overflow: auto;
+        padding: 14px;
         background: var(--panel-bg);
         border: 2px solid var(--panel-border);
-        box-shadow:
-          0 0 0 2px rgba(0, 0, 0, 0.45),
-          0 18px 32px var(--panel-shadow);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45), 0 18px 32px var(--panel-shadow);
         transform: translateY(10px);
         opacity: 0;
         pointer-events: none;
-        transition:
-          transform 160ms ease,
-          opacity 160ms ease;
+        transition: transform 160ms ease, opacity 160ms ease;
       }
 
       #settings-host:hover #settings-panel,
@@ -166,25 +147,42 @@
         pointer-events: auto;
       }
 
-      #settings-panel h2 {
-        margin: 0 0 10px;
-        font-size: 13px;
+      .panel-title {
+        margin: 0 0 12px;
+        font-size: 14px;
         letter-spacing: 1px;
         text-transform: uppercase;
         color: #fff4cc;
       }
 
-      .control {
+      .panel-section {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(149, 214, 240, 0.22);
+      }
+
+      .panel-section:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+
+      .section-heading {
+        font-size: 12px;
+        color: #ffe9b5;
+        text-transform: uppercase;
+      }
+
+      .control,
+      .species-row {
         display: grid;
         gap: 6px;
-        margin-bottom: 11px;
       }
 
-      .control:last-child {
-        margin-bottom: 0;
-      }
-
-      .control-header {
+      .control-header,
+      .species-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -196,17 +194,36 @@
         color: var(--accent);
       }
 
+      .species-meta,
+      .hint,
+      #host-only-note,
+      #room-info {
+        color: #7aa7bc;
+        font-size: 11px;
+        line-height: 1.3;
+      }
+
+      #species-roster {
+        display: grid;
+        gap: 8px;
+        max-height: 260px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
       input[type="range"],
-      select {
+      input[type="text"],
+      select,
+      button {
         width: 100%;
+        font-family: inherit;
       }
 
       input[type="range"] {
         margin: 0;
         appearance: none;
         height: 12px;
-        background:
-          linear-gradient(180deg, #122838 0%, #0b1722 100%);
+        background: linear-gradient(180deg, #122838 0%, #0b1722 100%);
         border: 2px solid #477896;
       }
 
@@ -219,63 +236,64 @@
         cursor: pointer;
       }
 
+      input[type="text"],
       select {
         appearance: none;
-        background:
-          linear-gradient(180deg, #122838 0%, #09141e 100%);
+        background: linear-gradient(180deg, #122838 0%, #09141e 100%);
         border: 2px solid #477896;
         padding: 7px 10px;
         color: var(--text-primary);
-        font-family: inherit;
       }
 
-      .toggle-row {
+      button {
+        border: 2px solid #cbefff;
+        padding: 8px 10px;
+        background: linear-gradient(180deg, #1b4260 0%, #0c1d2b 100%);
+        color: #eff7ff;
+        cursor: pointer;
+      }
+
+      .inline-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .species-count {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .checkbox-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-      }
-
-      .toggle-row label {
         color: var(--text-secondary);
         font-size: 12px;
       }
 
-      .pixel-toggle {
-        position: relative;
-        width: 46px;
-        height: 24px;
-        border: 2px solid #477896;
-        background: #09141e;
+      .users-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 6px;
       }
 
-      .pixel-toggle input {
-        position: absolute;
-        inset: 0;
-        opacity: 0;
-        cursor: pointer;
+      .users-list li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
       }
 
-      .pixel-toggle span {
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 16px;
-        height: 16px;
-        background: #9fdfff;
-        transition: transform 120ms ease, background 120ms ease;
-      }
-
-      .pixel-toggle input:checked + span {
-        transform: translateX(22px);
-        background: #ffd876;
-      }
-
-      .hint {
-        margin-top: 6px;
-        color: #7aa7bc;
-        font-size: 11px;
-        line-height: 1.3;
+      .user-chip {
+        width: 10px;
+        height: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
       }
     </style>
   </head>
@@ -284,64 +302,92 @@
     <div id="drag-region"></div>
     <div id="hud">
       <div id="tooltip"></div>
+      <div id="toast-stack"></div>
       <div id="settings-host">
         <section id="settings-panel">
-          <h2>Aquarium Controls</h2>
+          <h2 class="panel-title">Aquarium Systems</h2>
 
-          <div class="control">
-            <div class="control-header">
-              <span>Fish Count</span>
-              <span class="control-value" id="fish-count-value">10</span>
+          <section class="panel-section">
+            <div class="section-heading">General</div>
+            <div class="control">
+              <div class="control-header"><span>Theme</span></div>
+              <select id="theme">
+                <option value="ocean">Ocean Blue</option>
+                <option value="reef">Coral Reef</option>
+                <option value="abyss">Deep Abyss</option>
+              </select>
             </div>
-            <input id="fish-count" type="range" min="1" max="20" value="10" />
-          </div>
-
-          <div class="control">
-            <div class="control-header">
-              <span>Bubble Density</span>
-              <span class="control-value" id="bubble-density-value">1.0x</span>
+            <div class="control">
+              <div class="control-header"><span>Bubble Density</span><span class="control-value" id="bubble-density-value">1.0x</span></div>
+              <input id="bubble-density" type="range" min="0" max="200" value="100" />
             </div>
-            <input id="bubble-density" type="range" min="0" max="200" value="100" />
-          </div>
-
-          <div class="control">
-            <div class="control-header">
-              <span>Day/Night Speed</span>
-              <span class="control-value" id="cycle-speed-value">1.0x</span>
+            <div class="control">
+              <div class="control-header"><span>Day/Night Speed</span><span class="control-value" id="cycle-speed-value">1.0x</span></div>
+              <input id="cycle-speed" type="range" min="25" max="300" value="100" />
             </div>
-            <input id="cycle-speed" type="range" min="25" max="300" value="100" />
-          </div>
-
-          <div class="control" id="always-on-top-control">
-            <div class="toggle-row">
-              <label for="always-on-top">Always On Top</label>
-              <label class="pixel-toggle" for="always-on-top">
+            <div class="control">
+              <div class="control-header"><span>Total Creature Cap</span><span class="control-value" id="total-cap-value">24</span></div>
+              <input id="total-cap" type="range" min="1" max="30" value="24" />
+            </div>
+            <div class="checkbox-row">
+              <label for="balanced-auto">Balanced Auto Populate</label>
+              <input id="balanced-auto" type="checkbox" checked />
+            </div>
+            <div class="control" id="always-on-top-row">
+              <div class="checkbox-row">
+                <label for="always-on-top">Always On Top</label>
                 <input id="always-on-top" type="checkbox" />
-                <span></span>
-              </label>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div class="control">
-            <div class="control-header">
-              <span>Theme</span>
+          <section class="panel-section">
+            <div class="section-heading">Presets</div>
+            <div class="control">
+              <div class="control-header"><span>Ecosystem Preset</span></div>
+              <select id="preset-select"></select>
             </div>
-            <select id="theme">
-              <option value="ocean">Ocean Blue</option>
-              <option value="reef">Coral Reef</option>
-              <option value="abyss">Deep Abyss</option>
-            </select>
-          </div>
+            <div class="inline-row">
+              <input id="preset-name" type="text" placeholder="Custom preset name" />
+              <button id="preset-save" type="button">Save Preset</button>
+            </div>
+            <div class="inline-row">
+              <select id="preset-load-select"></select>
+              <button id="preset-load" type="button">Load Preset</button>
+            </div>
+            <div id="host-only-note">Local simulation active.</div>
+          </section>
 
-          <div class="hint">
-            Move the cursor near fish to attract them. Click to tap the glass.
-            Double-click to feed them.
-          </div>
+          <section class="panel-section">
+            <div class="section-heading">Creature Roster</div>
+            <div id="species-roster"></div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-heading">Multiplayer</div>
+            <input id="player-name" type="text" placeholder="Display name" value="Keeper" />
+            <div class="inline-row">
+              <button id="host-aquarium" type="button">Host Aquarium</button>
+              <button id="disconnect-aquarium" type="button">Disconnect</button>
+            </div>
+            <input id="join-target" type="text" placeholder="IP:port or ws://host:port" />
+            <div class="inline-row">
+              <input id="room-code" type="text" placeholder="Room code" maxlength="6" />
+              <button id="join-aquarium" type="button">Join Aquarium</button>
+            </div>
+            <div id="room-info">Disconnected</div>
+            <ul id="users-list" class="users-list"></ul>
+            <div class="inline-row">
+              <input id="chat-input" type="text" placeholder="Send a short bubble" maxlength="80" />
+              <button id="chat-send" type="button">Send</button>
+            </div>
+            <div class="hint">
+              Host locally to share on your LAN. Joined clients mirror taps, feeding, cursors, and the same authoritative tank state.
+            </div>
+          </section>
         </section>
 
-        <button id="gear-button" aria-label="Open aquarium settings">
-          <span class="gear-mark" aria-hidden="true"></span>
-        </button>
+        <button id="gear-button" aria-label="Open aquarium settings">Settings</button>
       </div>
     </div>
 

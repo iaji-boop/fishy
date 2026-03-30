@@ -1,0 +1,22 @@
+appId: com.iaji.pixelaquarium
+productName: Pixel Aquarium
+directories:
+  output: dist
+files:
+  - main.js
+  - preload.js
+  - renderer/**
+  - server/**
+  - shared/**
+  - assets/**
+  - package.json
+  - package-lock.json
+mac:
+  icon: assets/icon.icns
+  category: public.app-category.entertainment
+  target:
+    - dmg
+    - dir
+  artifactName: Pixel-Aquarium-${version}.${ext}
+dmg:
+  sign: false

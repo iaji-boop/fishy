@@ -1,25 +1,32 @@
 {
   "name": "pixel-aquarium",
-  "version": "0.1.0",
-  "description": "A frameless pixel-art desktop aquarium built with Electron and HTML Canvas.",
+  "version": "0.2.0",
+  "description": "A multiplayer pixel-art desktop aquarium built with Electron and HTML Canvas.",
+  "type": "module",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron ."
+    "dev": "electron .",
+    "build:mac": "electron-builder --mac dmg",
+    "build:dir": "electron-builder --mac dir"
   },
   "keywords": [
     "electron",
     "canvas",
     "aquarium",
     "pixel-art",
-    "desktop-pet"
+    "multiplayer"
   ],
   "author": "",
   "license": "MIT",
   "engines": {
     "node": ">=24"
   },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
   "devDependencies": {
-    "electron": "^41.0.3"
+    "electron": "^41.0.3",
+    "electron-builder": "^26.0.12"
   }
 }
