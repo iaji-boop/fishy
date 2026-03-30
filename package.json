@@ -1,0 +1,25 @@
+{
+  "name": "pixel-aquarium",
+  "version": "0.1.0",
+  "description": "A frameless pixel-art desktop aquarium built with Electron and HTML Canvas.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "keywords": [
+    "electron",
+    "canvas",
+    "aquarium",
+    "pixel-art",
+    "desktop-pet"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "electron": "^41.0.3"
+  }
+}

@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pixel Aquarium</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --panel-bg: rgba(6, 19, 30, 0.92);
+        --panel-border: #9bd8f3;
+        --panel-shadow: rgba(0, 0, 0, 0.45);
+        --text-primary: #eff7ff;
+        --text-secondary: #8bc4dd;
+        --accent: #f3c96e;
+        --accent-muted: #365d77;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #020611;
+        color: var(--text-primary);
+        font-family: "Courier New", monospace;
+        user-select: none;
+      }
+
+      body {
+        position: relative;
+        touch-action: manipulation;
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        touch-action: none;
+      }
+
+      #drag-region {
+        position: fixed;
+        inset: 0 0 auto 0;
+        height: 18px;
+        z-index: 40;
+        -webkit-app-region: drag;
+      }
+
+      body[data-platform="web"] #drag-region,
+      body[data-platform="web"] #always-on-top-control {
+        display: none;
+      }
+
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      #tooltip {
+        position: fixed;
+        transform: translate(-50%, calc(-100% - 12px));
+        padding: 6px 9px;
+        background: rgba(7, 15, 24, 0.9);
+        border: 2px solid #c1efff;
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+        color: #f4fbff;
+        font-size: 11px;
+        line-height: 1;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 140ms ease;
+      }
+
+      #tooltip.visible {
+        opacity: 1;
+      }
+
+      #settings-host {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        pointer-events: auto;
+      }
+
+      #gear-button {
+        width: 42px;
+        height: 42px;
+        border: 2px solid #d0f6ff;
+        padding: 0;
+        background:
+          linear-gradient(180deg, #173750 0%, #0a1b2a 100%);
+        box-shadow:
+          inset 0 0 0 2px rgba(255, 255, 255, 0.08),
+          0 6px 18px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+      }
+
+      #gear-button:hover {
+        border-color: #ffe2a7;
+      }
+
+      .gear-mark {
+        position: relative;
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .gear-mark::before,
+      .gear-mark::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        margin: auto;
+      }
+
+      .gear-mark::before {
+        width: 18px;
+        height: 18px;
+        background:
+          linear-gradient(90deg, transparent 0 4px, #d6f7ff 4px 6px, transparent 6px 12px, #d6f7ff 12px 14px, transparent 14px 100%),
+          linear-gradient(0deg, transparent 0 4px, #d6f7ff 4px 6px, transparent 6px 12px, #d6f7ff 12px 14px, transparent 14px 100%),
+          linear-gradient(180deg, transparent 0 1px, #d6f7ff 1px 17px, transparent 17px 100%);
+        transform: rotate(22.5deg);
+      }
+
+      .gear-mark::after {
+        width: 8px;
+        height: 8px;
+        background: #0a1825;
+        border: 2px solid #ffe2a7;
+      }
+
+      #settings-panel {
+        width: 250px;
+        padding: 14px 14px 12px;
+        background: var(--panel-bg);
+        border: 2px solid var(--panel-border);
+        box-shadow:
+          0 0 0 2px rgba(0, 0, 0, 0.45),
+          0 18px 32px var(--panel-shadow);
+        transform: translateY(10px);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          transform 160ms ease,
+          opacity 160ms ease;
+      }
+
+      #settings-host:hover #settings-panel,
+      #settings-host.open #settings-panel {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      #settings-panel h2 {
+        margin: 0 0 10px;
+        font-size: 13px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #fff4cc;
+      }
+
+      .control {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 11px;
+      }
+
+      .control:last-child {
+        margin-bottom: 0;
+      }
+
+      .control-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--text-secondary);
+        font-size: 12px;
+      }
+
+      .control-value {
+        color: var(--accent);
+      }
+
+      input[type="range"],
+      select {
+        width: 100%;
+      }
+
+      input[type="range"] {
+        margin: 0;
+        appearance: none;
+        height: 12px;
+        background:
+          linear-gradient(180deg, #122838 0%, #0b1722 100%);
+        border: 2px solid #477896;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 12px;
+        height: 18px;
+        border: 2px solid #fff0ca;
+        background: #d9aa4c;
+        cursor: pointer;
+      }
+
+      select {
+        appearance: none;
+        background:
+          linear-gradient(180deg, #122838 0%, #09141e 100%);
+        border: 2px solid #477896;
+        padding: 7px 10px;
+        color: var(--text-primary);
+        font-family: inherit;
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .toggle-row label {
+        color: var(--text-secondary);
+        font-size: 12px;
+      }
+
+      .pixel-toggle {
+        position: relative;
+        width: 46px;
+        height: 24px;
+        border: 2px solid #477896;
+        background: #09141e;
+      }
+
+      .pixel-toggle input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .pixel-toggle span {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        background: #9fdfff;
+        transition: transform 120ms ease, background 120ms ease;
+      }
+
+      .pixel-toggle input:checked + span {
+        transform: translateX(22px);
+        background: #ffd876;
+      }
+
+      .hint {
+        margin-top: 6px;
+        color: #7aa7bc;
+        font-size: 11px;
+        line-height: 1.3;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="aquarium"></canvas>
+    <div id="drag-region"></div>
+    <div id="hud">
+      <div id="tooltip"></div>
+      <div id="settings-host">
+        <section id="settings-panel">
+          <h2>Aquarium Controls</h2>
+
+          <div class="control">
+            <div class="control-header">
+              <span>Fish Count</span>
+              <span class="control-value" id="fish-count-value">10</span>
+            </div>
+            <input id="fish-count" type="range" min="1" max="20" value="10" />
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <span>Bubble Density</span>
+              <span class="control-value" id="bubble-density-value">1.0x</span>
+            </div>
+            <input id="bubble-density" type="range" min="0" max="200" value="100" />
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <span>Day/Night Speed</span>
+              <span class="control-value" id="cycle-speed-value">1.0x</span>
+            </div>
+            <input id="cycle-speed" type="range" min="25" max="300" value="100" />
+          </div>
+
+          <div class="control" id="always-on-top-control">
+            <div class="toggle-row">
+              <label for="always-on-top">Always On Top</label>
+              <label class="pixel-toggle" for="always-on-top">
+                <input id="always-on-top" type="checkbox" />
+                <span></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <span>Theme</span>
+            </div>
+            <select id="theme">
+              <option value="ocean">Ocean Blue</option>
+              <option value="reef">Coral Reef</option>
+              <option value="abyss">Deep Abyss</option>
+            </select>
+          </div>
+
+          <div class="hint">
+            Move the cursor near fish to attract them. Click to tap the glass.
+            Double-click to feed them.
+          </div>
+        </section>
+
+        <button id="gear-button" aria-label="Open aquarium settings">
+          <span class="gear-mark" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
