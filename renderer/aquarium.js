@@ -36,6 +36,16 @@ export default class Aquarium {
     this.time = 0;
     this.frameDelta = 1 / 60;
     this.lastFrameTime = 0;
+    this.viewport = {
+      x: 0,
+      y: 0,
+      width: BASE_WIDTH,
+      height: BASE_HEIGHT,
+      cssX: 0,
+      cssY: 0,
+      cssWidth: BASE_WIDTH,
+      cssHeight: BASE_HEIGHT
+    };
 
     this.settingsPanel = new SettingsPanel({
       root: settingsPanelEl,
@@ -153,13 +163,36 @@ export default class Aquarium {
     this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
     this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
     this.ctx.imageSmoothingEnabled = false;
+
+    const rawScale = Math.min(this.canvas.width / BASE_WIDTH, this.canvas.height / BASE_HEIGHT);
+    const scale = rawScale >= 1 ? Math.floor(rawScale) : rawScale;
+    const width = BASE_WIDTH * scale;
+    const height = BASE_HEIGHT * scale;
+    const x = Math.floor((this.canvas.width - width) * 0.5);
+    const y = Math.floor((this.canvas.height - height) * 0.5);
+
+    this.viewport = {
+      x,
+      y,
+      width,
+      height,
+      cssX: x / dpr,
+      cssY: y / dpr,
+      cssWidth: width / dpr,
+      cssHeight: height / dpr
+    };
   }
 
   toWorldCoordinates(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
+    const localX = clientX - rect.left - this.viewport.cssX;
+    const localY = clientY - rect.top - this.viewport.cssY;
+    const inside = localX >= 0 && localY >= 0 && localX <= this.viewport.cssWidth && localY <= this.viewport.cssHeight;
+
     return {
-      x: ((clientX - rect.left) / rect.width) * BASE_WIDTH,
-      y: ((clientY - rect.top) / rect.height) * BASE_HEIGHT
+      x: clamp(localX / this.viewport.cssWidth, 0, 1) * BASE_WIDTH,
+      y: clamp(localY / this.viewport.cssHeight, 0, 1) * BASE_HEIGHT,
+      inside
     };
   }
 
@@ -168,9 +201,9 @@ export default class Aquarium {
     this.client.updateCursor({
       x: world.x,
       y: world.y,
-      inside: true
+      inside: world.inside
     });
-    this.hoveredCreature = this.findHoveredCreature(world.x, world.y);
+    this.hoveredCreature = world.inside ? this.findHoveredCreature(world.x, world.y) : null;
     this.updateTooltip();
   }
 
@@ -186,6 +219,10 @@ export default class Aquarium {
 
   handlePointerUp(event) {
     const world = this.toWorldCoordinates(event.clientX, event.clientY);
+    if (!world.inside) {
+      return;
+    }
+
     this.client.tap(world.x, world.y);
 
     const now = performance.now();
@@ -222,8 +259,8 @@ export default class Aquarium {
 
     const rect = this.canvas.getBoundingClientRect();
     this.tooltipEl.textContent = this.hoveredCreature.name;
-    this.tooltipEl.style.left = `${rect.left + (this.hoveredCreature.x / BASE_WIDTH) * rect.width}px`;
-    this.tooltipEl.style.top = `${rect.top + ((this.hoveredCreature.y - 10) / BASE_HEIGHT) * rect.height}px`;
+    this.tooltipEl.style.left = `${rect.left + this.viewport.cssX + (this.hoveredCreature.x / BASE_WIDTH) * this.viewport.cssWidth}px`;
+    this.tooltipEl.style.top = `${rect.top + this.viewport.cssY + ((this.hoveredCreature.y - 10) / BASE_HEIGHT) * this.viewport.cssHeight}px`;
     this.tooltipEl.classList.add("visible");
   }
 
@@ -306,6 +343,6 @@ export default class Aquarium {
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.imageSmoothingEnabled = false;
-    this.ctx.drawImage(this.offscreen, 0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.drawImage(this.offscreen, this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height);
   }
 }
