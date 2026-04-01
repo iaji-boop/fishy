@@ -13,7 +13,11 @@ const aquarium = new Aquarium({
     cycleSpeed: document.getElementById("cycle-speed"),
     cycleSpeedValue: document.getElementById("cycle-speed-value"),
     alwaysOnTop: document.getElementById("always-on-top"),
-    theme: document.getElementById("theme")
+    theme: document.getElementById("theme"),
+    scoreValue: document.getElementById("score-value"),
+    comboValue: document.getElementById("combo-value"),
+    comboCard: document.getElementById("combo-card"),
+    comboDetail: document.getElementById("combo-detail")
   },
   electronAPI: window.electronAPI
 });

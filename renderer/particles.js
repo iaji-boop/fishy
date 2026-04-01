@@ -33,6 +33,19 @@ class RippleParticle {
   }
 }
 
+class HitParticle {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    this.vx = randRange(-42, 42);
+    this.vy = randRange(-34, 12);
+    this.life = 0;
+    this.maxLife = randRange(0.2, 0.42);
+    this.size = Math.round(randRange(1, 2.6));
+    this.color = color;
+  }
+}
+
 export default class ParticleSystem {
   constructor(width, height) {
     this.width = width;
@@ -40,6 +53,7 @@ export default class ParticleSystem {
     this.bubbles = [];
     this.food = [];
     this.ripples = [];
+    this.hitParticles = [];
     this.bubbleDensity = 1;
     this.bubbleAccumulator = 0;
   }
@@ -70,6 +84,14 @@ export default class ParticleSystem {
 
   spawnRipple(x, y) {
     this.ripples.push(new RippleParticle(x, y));
+  }
+
+  spawnHitBurst(x, y, count = 12) {
+    const palette = ["#ff5f7a", "#ff7d5a", "#ffd166"];
+    for (let i = 0; i < count; i += 1) {
+      const color = palette[i % palette.length];
+      this.hitParticles.push(new HitParticle(x + randRange(-2, 2), y + randRange(-2, 2), color));
+    }
   }
 
   spawnFood(x, y, count) {
@@ -127,6 +149,14 @@ export default class ParticleSystem {
       ripple.radius += deltaTime * 34;
       return ripple.life < ripple.maxLife;
     });
+
+    this.hitParticles = this.hitParticles.filter((particle) => {
+      particle.life += deltaTime;
+      particle.x += particle.vx * deltaTime;
+      particle.y += particle.vy * deltaTime;
+      particle.vy += 56 * deltaTime;
+      return particle.life < particle.maxLife;
+    });
   }
 
   renderAmbient(ctx) {
@@ -160,6 +190,17 @@ export default class ParticleSystem {
       ctx.beginPath();
       ctx.arc(ripple.x, ripple.y, ripple.radius + 3, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  renderCombat(ctx) {
+    for (const particle of this.hitParticles) {
+      const alpha = 1 - particle.life / particle.maxLife;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = particle.color;
+      ctx.fillRect(Math.round(particle.x), Math.round(particle.y), particle.size, particle.size);
       ctx.restore();
     }
   }

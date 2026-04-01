@@ -84,6 +84,50 @@
         opacity: 1;
       }
 
+      #scoreboard {
+        position: fixed;
+        top: 18px;
+        left: 18px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .score-card {
+        min-width: 132px;
+        padding: 8px 10px;
+        background: rgba(7, 15, 24, 0.9);
+        border: 2px solid #c1efff;
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+      }
+
+      #combo-card[data-active="true"] {
+        border-color: #ff9a7a;
+        background: rgba(42, 14, 20, 0.92);
+      }
+
+      .score-label {
+        display: block;
+        color: var(--text-secondary);
+        font-size: 10px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+
+      .score-value {
+        display: block;
+        margin-top: 2px;
+        color: #fff4cc;
+        font-size: 18px;
+        line-height: 1;
+      }
+
+      #combo-detail {
+        margin-top: 4px;
+        color: #ffcfb1;
+        font-size: 10px;
+        line-height: 1.2;
+      }
+
       #settings-host {
         position: fixed;
         right: 16px;
@@ -283,6 +327,17 @@
     <canvas id="aquarium"></canvas>
     <div id="drag-region"></div>
     <div id="hud">
+      <div id="scoreboard">
+        <div class="score-card">
+          <span class="score-label">Score</span>
+          <span class="score-value" id="score-value">0</span>
+        </div>
+        <div class="score-card" id="combo-card" data-active="false">
+          <span class="score-label">Combo</span>
+          <span class="score-value" id="combo-value">x0</span>
+          <div id="combo-detail">Chain kills for bonus</div>
+        </div>
+      </div>
       <div id="tooltip"></div>
       <div id="settings-host">
         <section id="settings-panel">
@@ -334,8 +389,9 @@
           </div>
 
           <div class="hint">
-            Move the cursor near fish to attract them. Click to tap the glass.
-            Double-click to feed them.
+            Move the cursor near fish to attract them. Click a fish to kill it for
+            points, click the water to tap the glass, and double-click the water
+            to feed them.
           </div>
         </section>
 

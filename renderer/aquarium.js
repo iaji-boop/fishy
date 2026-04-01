@@ -20,7 +20,14 @@ export default class Aquarium {
     this.background = new Background(BASE_WIDTH, BASE_HEIGHT);
     this.particles = new ParticleSystem(BASE_WIDTH, BASE_HEIGHT);
     this.fish = [];
+    this.pendingRespawns = [];
     this.hoveredFish = null;
+    this.nextFishId = 1;
+    this.score = 0;
+    this.combo = 0;
+    this.comboExpiresAt = 0;
+    this.comboMessage = "Chain kills for bonus";
+    this.comboMessageUntil = 0;
 
     this.time = 0;
     this.lastFrameTime = 0;
@@ -59,6 +66,7 @@ export default class Aquarium {
 
     document.body.dataset.platform = this.isDesktopHost ? "desktop" : "web";
     this.bindControls();
+    this.updateScoreHud();
     this.seedFish(this.settings.fishCount);
   }
 
@@ -152,26 +160,32 @@ export default class Aquarium {
   }
 
   seedFish(count) {
+    this.nextFishId = 1;
+    this.pendingRespawns = [];
     this.fish = Array.from({ length: count }, (_, index) => {
       const x = randRange(36, BASE_WIDTH - 36);
       const y = randRange(36, BASE_HEIGHT - 46);
       return new Fish(index + 1, x, y);
     });
+    this.nextFishId = this.fish.length + 1;
   }
 
   syncFishCount() {
-    while (this.fish.length < this.settings.fishCount) {
-      const fish = new Fish(
-        this.fish.length + 1,
-        randRange(36, BASE_WIDTH - 36),
-        randRange(36, BASE_HEIGHT - 40)
-      );
-      this.fish.push(fish);
+    while (this.fish.length > this.settings.fishCount) {
+      this.fish.pop();
     }
 
-    if (this.fish.length > this.settings.fishCount) {
-      this.fish.length = this.settings.fishCount;
+    const allowedPending = Math.max(0, this.settings.fishCount - this.fish.length);
+    if (this.pendingRespawns.length > allowedPending) {
+      this.pendingRespawns.length = allowedPending;
     }
+
+    while (this.fish.length + this.pendingRespawns.length < this.settings.fishCount) {
+      const spawn = this.randomSpawnPosition();
+      this.fish.push(this.createFish(spawn.x, spawn.y));
+    }
+
+    this.pruneSocialTargets();
   }
 
   handleResize() {
@@ -214,6 +228,13 @@ export default class Aquarium {
 
   handlePointerUp(event) {
     const world = this.toWorldCoordinates(event.clientX, event.clientY);
+    const targetFish = this.findFishAt(world.x, world.y);
+    if (targetFish) {
+      this.killFish(targetFish);
+      this.lastTap.time = 0;
+      return;
+    }
+
     this.particles.spawnRipple(world.x, world.y);
     this.triggerFlee(world, 64, 1.6);
 
@@ -242,6 +263,120 @@ export default class Aquarium {
       if (Math.hypot(dx, dy) <= radius) {
         fish.triggerFlee(point, duration);
       }
+    }
+  }
+
+  createFish(x, y) {
+    const fish = new Fish(this.nextFishId, x, y);
+    this.nextFishId += 1;
+    return fish;
+  }
+
+  randomSpawnPosition() {
+    return {
+      x: randRange(36, BASE_WIDTH - 36),
+      y: randRange(36, BASE_HEIGHT - 46)
+    };
+  }
+
+  findFishAt(x, y) {
+    for (let index = this.fish.length - 1; index >= 0; index -= 1) {
+      const fish = this.fish[index];
+      if (fish.containsPoint(x, y, this.time)) {
+        return fish;
+      }
+    }
+
+    return null;
+  }
+
+  pruneSocialTargets() {
+    const activeFish = new Set(this.fish);
+    for (const fish of this.fish) {
+      if (fish.socialTarget && !activeFish.has(fish.socialTarget)) {
+        fish.clearSocial();
+      }
+    }
+  }
+
+  queueRespawn() {
+    if (this.fish.length + this.pendingRespawns.length >= this.settings.fishCount) {
+      return;
+    }
+
+    this.pendingRespawns.push(this.time + randRange(0.9, 1.6));
+  }
+
+  processRespawns() {
+    this.pendingRespawns.sort((left, right) => left - right);
+
+    while (this.pendingRespawns.length) {
+      if (this.fish.length >= this.settings.fishCount) {
+        this.pendingRespawns = [];
+        return;
+      }
+
+      if (this.pendingRespawns[0] > this.time) {
+        return;
+      }
+
+      this.pendingRespawns.shift();
+      const spawn = this.randomSpawnPosition();
+      this.fish.push(this.createFish(spawn.x, spawn.y));
+    }
+  }
+
+  registerKill(position) {
+    if (this.time <= this.comboExpiresAt) {
+      this.combo += 1;
+    } else {
+      this.combo = 1;
+    }
+
+    this.comboExpiresAt = this.time + 2.1;
+    const gained = 100 * this.combo;
+    this.score += gained;
+    this.comboMessage = this.combo > 1 ? `Combo x${this.combo} +${gained}` : `+${gained} points`;
+    this.comboMessageUntil = this.time + 1.1;
+    this.particles.spawnRipple(position.x, position.y);
+    this.particles.spawnHitBurst(position.x, position.y, 14 + this.combo * 2);
+    this.updateScoreHud();
+  }
+
+  killFish(targetFish) {
+    const index = this.fish.indexOf(targetFish);
+    if (index < 0) {
+      return;
+    }
+
+    const point = {
+      x: targetFish.position.x,
+      y: targetFish.position.y
+    };
+
+    this.fish.splice(index, 1);
+    this.hoveredFish = null;
+    this.tooltipEl.classList.remove("visible");
+    this.triggerFlee(point, 78, 2.2);
+    this.pruneSocialTargets();
+    this.queueRespawn();
+    this.registerKill(point);
+  }
+
+  updateScoreHud() {
+    const comboActive = this.combo > 0 && this.time <= this.comboExpiresAt;
+    const comboRemaining = Math.max(0, this.comboExpiresAt - this.time);
+
+    this.controls.scoreValue.textContent = String(this.score);
+    this.controls.comboValue.textContent = comboActive ? `x${this.combo}` : "x0";
+    this.controls.comboCard.dataset.active = comboActive && this.combo > 1 ? "true" : "false";
+
+    if (this.time < this.comboMessageUntil) {
+      this.controls.comboDetail.textContent = this.comboMessage;
+    } else if (comboActive) {
+      this.controls.comboDetail.textContent = `${comboRemaining.toFixed(1)}s to chain`;
+    } else {
+      this.controls.comboDetail.textContent = "Chain kills for bonus";
     }
   }
 
@@ -318,7 +453,12 @@ export default class Aquarium {
     }
 
     this.particles.update(deltaTime, BASE_HEIGHT - 24);
+    this.processRespawns();
     this.maybeStartSocialInteraction(deltaTime);
+
+    if (this.combo > 0 && this.time > this.comboExpiresAt) {
+      this.combo = 0;
+    }
 
     for (const fish of this.fish) {
       fish.update(deltaTime, this.fish, {
@@ -335,6 +475,7 @@ export default class Aquarium {
     }
 
     this.updateTooltip();
+    this.updateScoreHud();
     this.render();
     this.animationFrame = requestAnimationFrame(this.loop);
   }
@@ -351,6 +492,7 @@ export default class Aquarium {
       fish.render(ctx, this.time, fish === this.hoveredFish);
     }
 
+    this.particles.renderCombat(ctx);
     this.particles.renderRipples(ctx);
 
     if (this.background.isNight()) {
