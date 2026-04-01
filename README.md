@@ -1,96 +1,66 @@
 # Pixel Aquarium
 
-Pixel Aquarium is now a shared, multi-species aquarium for Electron on macOS with a browser-friendly fallback view in the repo. The tank supports predators, jellyfish, eels, reef species, large gliders, decorative creatures, and authoritative multiplayer over WebSockets.
+Pixel Aquarium is a frameless Electron desktop app that renders a low-resolution pixel-art aquarium on an HTML5 canvas. Fish are procedurally styled, follow boids-inspired steering, react to the mouse, flee from taps, eat falling food, and settle into a sleep state during the night cycle.
 
-## New Species
+## Features
 
-- Predators: Great White Shark, Hammerhead Shark, Barracuda
-- Jellyfish: Moon Jellyfish, Box Jellyfish, Lion's Mane Jellyfish
-- Eels: Moray Eel, Garden Eel, Electric Eel
-- Reef / Other: Pufferfish, Seahorse, Clownfish, Manta Ray, Anglerfish, Sea Turtle, Octopus, Swordfish, Starfish
-- Existing schooling generic fish remain part of the ecosystem
+- 320x180 internal pixel-art scene scaled crisply to the full window.
+- Procedurally generated fish built from randomized body masks, fins, tails, eye styles, and palette variations.
+- Fish AI states for idle wandering, curiosity, fleeing, feeding, and sleeping.
+- Parallax-inspired aquarium background with seaweed sway, bubbles, light rays, shells, pebbles, and a treasure chest bubble burst.
+- Pixel-styled settings overlay with fish count, bubble density, day/night speed, always-on-top, and theme controls.
+- Frameless resizable window plus tray menu actions for Show, Settings, Always On Top, and Quit.
 
-## Ecosystem Rules
+## Project Structure
 
-- Small fish flee sharks, barracuda, electric eel zaps, and sudden taps on the glass.
-- Clownfish, generic fish, and garden eels group together.
-- Predators ignore food. Feeders chase food. Jellyfish and starfish never eat.
-- Seahorses attach to seaweed, clownfish orbit anemones, moray eels lunge from rock crevices, and octopus avoids nearby eels.
-- Spawn balancing respects the prompt caps:
-  - max 2 sharks
-  - max 2 large jellyfish
-  - max 1 octopus
-  - max 15 generic fish
-  - total cap adjustable up to 30
+```text
+pixel-aquarium/
+├── main.js
+├── preload.js
+├── renderer/
+│   ├── index.html
+│   ├── app.js
+│   ├── aquarium.js
+│   ├── fish.js
+│   ├── particles.js
+│   ├── background.js
+│   └── utils.js
+├── assets/
+│   └── sprites/
+├── package.json
+└── README.md
+```
 
-## Multiplayer
-
-The app supports two modes:
-
-- Local/offline fallback:
-  - Runs the shared aquarium simulation inside the renderer with no server required.
-- Hosted room:
-  - The Electron main process starts a `ws` server on port `3476`
-  - A 6-character room code is generated
-  - Other clients join using `ws://HOST_IP:3476` plus the room code
-
-Shared multiplayer features:
-
-- authoritative creature simulation at 20 ticks per second
-- synced feeding and tap-glass ripples
-- shared user cursors with name tags
-- join/leave toast notifications
-- chat bubbles near player cursors
-
-## Settings Panel
-
-The updated panel includes:
-
-- ecosystem presets
-- balanced auto-populate mode
-- total creature cap
-- full species checklist and per-species sliders
-- custom preset save/load via local storage
-- multiplayer host/join/disconnect/chat controls
-
-## Development
-
-Install dependencies and run the Electron desktop app:
+## Setup
 
 ```bash
 npm install
 npm start
 ```
 
-The repo also contains a browser entrypoint at [index.html](/Users/jj/pixel-aquarium/index.html) that embeds the renderer for Git-backed sharing.
+## Web Version
 
-## macOS Build / Xcode
+The browser-shareable build is the static site in [renderer/index.html](/Users/jj/pixel-aquarium/renderer/index.html). It runs without Electron, and the desktop-only always-on-top control is hidden automatically on the web.
 
-Packaging config lives in [electron-builder.yml](/Users/jj/pixel-aquarium/electron-builder.yml).
-
-Build commands:
+For a local preview of the website version:
 
 ```bash
-npm run build:dir
-npm run build:mac
+cd renderer
+python3 -m http.server 8000
 ```
 
-Notes:
+Then open `http://127.0.0.1:8000`.
 
-- Product name is `Pixel Aquarium`
-- App ID is `com.iaji.pixelaquarium`
-- DMG and unpacked `.app` targets are configured
-- Native macOS menu entries and fullscreen support are enabled in [main.js](/Users/jj/pixel-aquarium/main.js)
-- Dock badge updates with multiplayer player count
-- For ad-hoc signing, run:
+## Interaction
 
-```bash
-codesign --deep --force --sign - dist/mac/Pixel\\ Aquarium.app
-```
+- Move the mouse near fish to pull them into a curious follow state.
+- Click to tap the glass, generate a ripple, and scare nearby fish.
+- Move the mouse quickly to scatter fish without clicking.
+- Double-click anywhere to drop food particles that sink toward the bottom.
+- Hover over a fish to reveal its generated name.
 
-The project folder can still be opened directly in Xcode for inspection/editing, but the runtime and packaging flow remain Electron-based.
+## Notes
 
-## Repo URLs
-
-- GitHub repo: [iaji-boop/fishy](https://github.com/iaji-boop/fishy)
-- Repo-backed share URL: [https://raw.githack.com/iaji-boop/fishy/main/index.html](https://raw.githack.com/iaji-boop/fishy/main/index.html)
+- The scene targets 60fps via `requestAnimationFrame`.
+- Sprites are generated at runtime, so there are no external fish sheets to manage.
+- Closing or minimizing the window hides the app to the system tray instead of exiting immediately.

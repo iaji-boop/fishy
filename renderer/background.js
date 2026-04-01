@@ -1,4 +1,3 @@
-import { DECORATIONS } from "../shared/species.js";
 import { clamp, hsl, lerp, randRange, smoothstep } from "./utils.js";
 
 export const THEMES = {
@@ -61,8 +60,8 @@ export default class Background {
     this.chestTimer = 0;
     this.chestPulse = 0;
 
-    this.seaweed = Array.from({ length: 12 }, (_, index) => ({
-      x: DECORATIONS.seaweedAnchors[index] ?? 18 + index * 23,
+    this.seaweed = Array.from({ length: 13 }, (_, index) => ({
+      x: 18 + index * 23 + randRange(-6, 6),
       height: randRange(18, 42),
       phase: randRange(0, Math.PI * 2)
     }));
@@ -96,13 +95,18 @@ export default class Background {
     }));
   }
 
+  resize(width, height) {
+    this.width = width;
+    this.height = height;
+  }
+
   setTheme(themeId) {
     this.theme = THEMES[themeId] || THEMES.ocean;
   }
 
-  update(deltaTime, cycleSpeed, forcedCycle = null) {
+  update(deltaTime, cycleSpeed) {
     this.time += deltaTime;
-    this.cycle = forcedCycle ?? ((this.cycle + (deltaTime * cycleSpeed) / 300) % 1);
+    this.cycle = (this.cycle + (deltaTime * cycleSpeed) / 300) % 1;
 
     const daylightWave = (Math.sin(this.cycle * Math.PI * 2 - Math.PI / 2) + 1) * 0.5;
     this.daylight = clamp(daylightWave, 0, 1);
@@ -114,7 +118,18 @@ export default class Background {
     if (this.chestTimer >= 14) {
       this.chestTimer = 0;
       this.chestPulse = 1;
+      return {
+        x: this.width * 0.76,
+        y: this.height - 24,
+        count: 9 + Math.round(Math.random() * 4)
+      };
     }
+
+    return null;
+  }
+
+  isNight() {
+    return this.daylight < 0.28;
   }
 
   render(ctx) {
@@ -128,10 +143,12 @@ export default class Background {
     const theme = this.theme;
     const topLight = lerp(theme.topLight - 14, theme.topLight, this.daylight);
     const bottomLight = lerp(theme.bottomLight - 3, theme.bottomLight, this.daylight);
+
     const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
     gradient.addColorStop(0, hsl(theme.topHue, theme.topSat, topLight));
     gradient.addColorStop(0.5, hsl(theme.topHue + 9, theme.topSat - 12, lerp(topLight - 8, topLight + 4, this.daylight)));
     gradient.addColorStop(1, hsl(theme.bottomHue, theme.bottomSat, bottomLight));
+
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.width, this.height);
 
@@ -165,13 +182,15 @@ export default class Background {
   }
 
   renderBackdropLife(ctx) {
+    const swayTime = this.time * 1.2;
     const theme = this.theme;
 
     for (const coral of this.corals) {
       const hue = theme.coralHue + coral.hueShift;
       const coralLight = lerp(24, 54, this.daylight);
       ctx.fillStyle = hsl(hue, 56, coralLight, 0.65);
-      const wobble = Math.sin(this.time * 0.72 + coral.x * 0.09) * 2;
+
+      const wobble = Math.sin(swayTime * 0.6 + coral.x * 0.09) * 2;
       ctx.fillRect(coral.x + wobble, coral.base, coral.width, coral.height);
       ctx.fillRect(coral.x + wobble + 3, coral.base - 4, coral.width - 8, 4);
       ctx.fillRect(coral.x + wobble + coral.width / 2 - 1, coral.base - 8, 3, 6);
@@ -183,16 +202,15 @@ export default class Background {
       ctx.fillRect(rock.x + 2, rock.y - 2, rock.width - 4, 2);
     }
 
-    this.renderAnemones(ctx);
     for (const stalk of this.seaweed) {
       this.renderSeaweed(ctx, stalk, theme.plantHue);
     }
-    this.renderCrevices(ctx);
   }
 
   renderSeaweed(ctx, stalk, hue) {
     const rootY = this.height - 28;
     ctx.fillStyle = hsl(hue, 45, lerp(16, 38, this.daylight), 0.8);
+
     for (let segment = 0; segment < stalk.height; segment += 2) {
       const wave = Math.sin(this.time * 1.1 + stalk.phase + segment * 0.18) * (segment / stalk.height) * 4;
       const x = stalk.x + wave;
@@ -201,23 +219,6 @@ export default class Background {
       if (segment > 8 && segment % 6 === 0) {
         ctx.fillRect(x + 2, y - 1, 2, 1);
       }
-    }
-  }
-
-  renderAnemones(ctx) {
-    for (const anemone of DECORATIONS.anemones) {
-      ctx.fillStyle = hsl(348, 72, lerp(46, 58, this.daylight), 0.85);
-      for (let index = -4; index <= 4; index += 1) {
-        const sway = Math.sin(this.time * 1.4 + index) * 1.6;
-        ctx.fillRect(anemone.x + index * 2 + sway, anemone.y - 8, 2, 8);
-      }
-    }
-  }
-
-  renderCrevices(ctx) {
-    ctx.fillStyle = hsl(this.theme.bottomHue + 12, 24, 10, 0.8);
-    for (const crevice of DECORATIONS.eelCrevices) {
-      ctx.fillRect(crevice.x - 3, crevice.y - 2, 7, 5);
     }
   }
 

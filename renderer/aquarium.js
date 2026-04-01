@@ -1,57 +1,55 @@
-import { BASE_HEIGHT, BASE_WIDTH, createDefaultSettings } from "../shared/species.js";
 import Background from "./background.js";
-import { createCreatureRenderer } from "./creatures/index.js";
-import ChatOverlay from "./multiplayer/chat.js";
-import CursorSyncRenderer from "./multiplayer/cursor-sync.js";
-import AquariumMultiplayerClient from "./multiplayer/client.js";
+import Fish from "./fish.js";
 import ParticleSystem from "./particles.js";
-import SettingsPanel from "./settings.js";
-import { clamp, createCanvas, randInt } from "./utils.js";
+import { clamp, createCanvas, formatMultiplier, randInt, randRange } from "./utils.js";
+
+const BASE_WIDTH = 320;
+const BASE_HEIGHT = 180;
 
 export default class Aquarium {
-  constructor({ canvas, tooltipEl, settingsHost, settingsPanelEl, toastEl, controls, electronAPI }) {
+  constructor({ canvas, tooltipEl, settingsHost, controls, electronAPI }) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.offscreen = createCanvas(BASE_WIDTH, BASE_HEIGHT);
     this.offscreenCtx = this.offscreen.getContext("2d");
     this.tooltipEl = tooltipEl;
     this.settingsHost = settingsHost;
+    this.controls = controls;
     this.electronAPI = electronAPI;
+
     this.background = new Background(BASE_WIDTH, BASE_HEIGHT);
     this.particles = new ParticleSystem(BASE_WIDTH, BASE_HEIGHT);
-    this.cursorSync = new CursorSyncRenderer();
-    this.chatOverlay = new ChatOverlay(toastEl);
-    this.creatureRenderers = new Map();
-    this.snapshot = null;
-    this.connectionState = {
-      users: [],
-      selfId: "local-player",
-      connected: true,
-      mode: "local",
-      isHost: true
-    };
-    this.currentSettings = createDefaultSettings();
-    this.hoveredCreature = null;
-    this.lastTap = { time: 0, x: 0, y: 0 };
+    this.fish = [];
+    this.hoveredFish = null;
+
     this.time = 0;
-    this.frameDelta = 1 / 60;
     this.lastFrameTime = 0;
+    this.animationFrame = 0;
+    this.socialCooldown = 5;
+    this.frameDelta = 1 / 60;
 
-    this.settingsPanel = new SettingsPanel({
-      root: settingsPanelEl,
-      onSettingsChange: (settings) => this.applySettings(settings),
-      onHost: ({ profile, settings }) => this.hostAquarium(profile, settings),
-      onJoin: ({ target, roomCode, profile }) => this.joinAquarium(target, roomCode, profile),
-      onDisconnect: () => this.disconnectAquarium(),
-      onChat: (text) => this.client.sendChat(text)
-    });
+    this.mouse = {
+      x: BASE_WIDTH * 0.5,
+      y: BASE_HEIGHT * 0.5,
+      inside: false,
+      vx: 0,
+      vy: 0,
+      speed: 0
+    };
 
-    this.client = new AquariumMultiplayerClient({
-      electronAPI,
-      onSnapshot: (snapshot) => this.handleSnapshot(snapshot),
-      onStateChange: (state) => this.handleConnectionState(state),
-      onToast: (message) => this.chatOverlay.pushToast(message)
-    });
+    this.settings = {
+      fishCount: 10,
+      bubbleDensity: 1,
+      cycleSpeed: 1,
+      theme: "ocean",
+      alwaysOnTop: false
+    };
+    this.isDesktopHost = Boolean(this.electronAPI?.getWindowState);
+    this.lastTap = {
+      time: 0,
+      x: 0,
+      y: 0
+    };
 
     this.handleResize = this.handleResize.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -59,91 +57,120 @@ export default class Aquarium {
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.loop = this.loop.bind(this);
 
-    document.body.dataset.platform = this.electronAPI?.hostAquarium ? "desktop" : "web";
-    controls.gearButton.addEventListener("click", (event) => {
+    document.body.dataset.platform = this.isDesktopHost ? "desktop" : "web";
+    this.bindControls();
+    this.seedFish(this.settings.fishCount);
+  }
+
+  async initElectronState() {
+    if (!this.isDesktopHost) {
+      return;
+    }
+
+    try {
+      const state = await this.electronAPI.getWindowState();
+      this.settings.alwaysOnTop = Boolean(state?.alwaysOnTop);
+      this.controls.alwaysOnTop.checked = this.settings.alwaysOnTop;
+    } catch {
+      // Ignore renderer boot failures from Electron IPC.
+    }
+
+    this.electronAPI.onShowSettings?.(() => {
+      this.settingsHost.classList.add("open");
+    });
+
+    this.electronAPI.onAlwaysOnTopUpdated?.((value) => {
+      this.settings.alwaysOnTop = Boolean(value);
+      this.controls.alwaysOnTop.checked = this.settings.alwaysOnTop;
+    });
+  }
+
+  bindControls() {
+    this.controls.gearButton.addEventListener("click", (event) => {
       event.stopPropagation();
       this.settingsHost.classList.toggle("open");
     });
+
     document.addEventListener("pointerdown", (event) => {
       if (!this.settingsHost.contains(event.target)) {
         this.settingsHost.classList.remove("open");
       }
     });
+
+    this.controls.fishCount.addEventListener("input", () => {
+      this.settings.fishCount = Number(this.controls.fishCount.value);
+      this.controls.fishCountValue.textContent = String(this.settings.fishCount);
+      this.syncFishCount();
+    });
+
+    this.controls.bubbleDensity.addEventListener("input", () => {
+      const density = Number(this.controls.bubbleDensity.value) / 100;
+      this.settings.bubbleDensity = density;
+      this.controls.bubbleDensityValue.textContent = formatMultiplier(this.settings.bubbleDensity);
+      this.particles.setBubbleDensity(this.settings.bubbleDensity);
+    });
+
+    this.controls.cycleSpeed.addEventListener("input", () => {
+      this.settings.cycleSpeed = Number(this.controls.cycleSpeed.value) / 100;
+      this.controls.cycleSpeedValue.textContent = formatMultiplier(this.settings.cycleSpeed);
+    });
+
+    this.controls.theme.addEventListener("change", () => {
+      this.settings.theme = this.controls.theme.value;
+      this.background.setTheme(this.settings.theme);
+    });
+
+    this.controls.alwaysOnTop.addEventListener("change", async () => {
+      this.settings.alwaysOnTop = this.controls.alwaysOnTop.checked;
+      await this.electronAPI?.setAlwaysOnTop?.(this.settings.alwaysOnTop);
+    });
+
+    this.controls.fishCountValue.textContent = String(this.settings.fishCount);
+    this.controls.bubbleDensityValue.textContent = formatMultiplier(this.settings.bubbleDensity);
+    this.controls.cycleSpeedValue.textContent = formatMultiplier(this.settings.cycleSpeed);
+    this.controls.theme.value = this.settings.theme;
   }
 
   start() {
     this.handleResize();
+    this.initElectronState();
+
     window.addEventListener("resize", this.handleResize);
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
     this.canvas.addEventListener("pointerleave", this.handlePointerLeave);
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
 
-    const profile = this.settingsPanel.profile();
-    this.client.startLocal(this.currentSettings, profile);
-    requestAnimationFrame(this.loop);
+    this.animationFrame = requestAnimationFrame(this.loop);
   }
 
-  applySettings(settings) {
-    this.currentSettings = settings;
-    this.background.setTheme(settings.theme);
-    this.client.updateSettings(settings);
-    this.electronAPI?.setAlwaysOnTop?.(settings.alwaysOnTop);
+  stop() {
+    cancelAnimationFrame(this.animationFrame);
+    window.removeEventListener("resize", this.handleResize);
+    this.canvas.removeEventListener("pointermove", this.handlePointerMove);
+    this.canvas.removeEventListener("pointerleave", this.handlePointerLeave);
+    this.canvas.removeEventListener("pointerup", this.handlePointerUp);
   }
 
-  async hostAquarium(profile, settings) {
-    await this.client.hostElectron(settings, profile);
+  seedFish(count) {
+    this.fish = Array.from({ length: count }, (_, index) => {
+      const x = randRange(36, BASE_WIDTH - 36);
+      const y = randRange(36, BASE_HEIGHT - 46);
+      return new Fish(index + 1, x, y);
+    });
   }
 
-  async joinAquarium(target, roomCode, profile) {
-    if (!target) {
-      this.chatOverlay.pushToast("Enter an IP:port or ws:// URL to join.");
-      return;
-    }
-    await this.client.joinRemote(target, roomCode, profile);
-  }
-
-  disconnectAquarium() {
-    this.client.disconnect();
-    this.client.startLocal(this.currentSettings, this.settingsPanel.profile());
-  }
-
-  handleConnectionState(state) {
-    this.connectionState = {
-      ...this.connectionState,
-      ...state
-    };
-
-    if (state.syncedSettings) {
-      this.currentSettings = state.syncedSettings;
-      this.settingsPanel.setSettings(state.syncedSettings, { silent: true });
+  syncFishCount() {
+    while (this.fish.length < this.settings.fishCount) {
+      const fish = new Fish(
+        this.fish.length + 1,
+        randRange(36, BASE_WIDTH - 36),
+        randRange(36, BASE_HEIGHT - 40)
+      );
+      this.fish.push(fish);
     }
 
-    this.settingsPanel.updateConnection(this.connectionState);
-    this.electronAPI?.setDockBadge?.(String(state.users?.length || 0));
-  }
-
-  handleSnapshot(snapshot) {
-    this.snapshot = snapshot;
-    this.currentSettings = snapshot.settings;
-    this.background.setTheme(snapshot.settings.theme);
-    this.syncRenderers(snapshot.entities);
-    this.connectionState.users = snapshot.players;
-    this.settingsPanel.updateConnection(this.connectionState);
-  }
-
-  syncRenderers(entities) {
-    const active = new Set(entities.map((entity) => entity.id));
-    for (const entity of entities) {
-      if (!this.creatureRenderers.has(entity.id)) {
-        this.creatureRenderers.set(entity.id, createCreatureRenderer(entity));
-      }
-      this.creatureRenderers.get(entity.id).sync(entity);
-    }
-
-    for (const [id] of this.creatureRenderers) {
-      if (!active.has(id)) {
-        this.creatureRenderers.delete(id);
-      }
+    if (this.fish.length > this.settings.fishCount) {
+      this.fish.length = this.settings.fishCount;
     }
   }
 
@@ -165,33 +192,38 @@ export default class Aquarium {
 
   handlePointerMove(event) {
     const world = this.toWorldCoordinates(event.clientX, event.clientY);
-    this.client.updateCursor({
-      x: world.x,
-      y: world.y,
-      inside: true
-    });
-    this.hoveredCreature = this.findHoveredCreature(world.x, world.y);
-    this.updateTooltip();
+    const dt = Math.max(0.016, this.frameDelta);
+
+    this.mouse.vx = (world.x - this.mouse.x) / dt;
+    this.mouse.vy = (world.y - this.mouse.y) / dt;
+    this.mouse.speed = Math.hypot(this.mouse.vx, this.mouse.vy);
+    this.mouse.x = world.x;
+    this.mouse.y = world.y;
+    this.mouse.inside = true;
+
+    if (this.mouse.speed > 150) {
+      this.triggerFlee(world, 54, 1.2);
+    }
   }
 
   handlePointerLeave() {
-    this.client.updateCursor({
-      x: BASE_WIDTH * 0.5,
-      y: BASE_HEIGHT * 0.5,
-      inside: false
-    });
-    this.hoveredCreature = null;
+    this.mouse.inside = false;
+    this.hoveredFish = null;
     this.tooltipEl.classList.remove("visible");
   }
 
   handlePointerUp(event) {
     const world = this.toWorldCoordinates(event.clientX, event.clientY);
-    this.client.tap(world.x, world.y);
+    this.particles.spawnRipple(world.x, world.y);
+    this.triggerFlee(world, 64, 1.6);
 
     const now = performance.now();
-    const isDoubleTap = now - this.lastTap.time < 320 && Math.hypot(world.x - this.lastTap.x, world.y - this.lastTap.y) < 18;
+    const isDoubleTap =
+      now - this.lastTap.time < 320 &&
+      Math.hypot(world.x - this.lastTap.x, world.y - this.lastTap.y) < 18;
+
     if (isDoubleTap) {
-      this.client.feed(world.x, world.y);
+      this.particles.spawnFood(world.x, world.y, randInt(3, 5));
       this.lastTap.time = 0;
       return;
     }
@@ -203,27 +235,72 @@ export default class Aquarium {
     };
   }
 
-  findHoveredCreature(x, y) {
-    if (!this.snapshot?.entities?.length) {
-      return null;
+  triggerFlee(point, radius, duration) {
+    for (const fish of this.fish) {
+      const dx = fish.position.x - point.x;
+      const dy = fish.position.y - point.y;
+      if (Math.hypot(dx, dy) <= radius) {
+        fish.triggerFlee(point, duration);
+      }
+    }
+  }
+
+  maybeStartSocialInteraction(deltaTime) {
+    this.socialCooldown -= deltaTime;
+    if (this.socialCooldown > 0 || this.fish.length < 2) {
+      return;
     }
 
-    return this.snapshot.entities.find((entity) => {
-      const radius = 6 * (entity.scale || 1);
-      return Math.hypot(entity.x - x, entity.y - y) < radius;
-    }) || null;
+    const idleFish = this.fish.filter((fish) => fish.state === "idle" && !fish.socialMode);
+    if (idleFish.length < 2) {
+      return;
+    }
+
+    for (let i = 0; i < idleFish.length; i += 1) {
+      const first = idleFish[i];
+      for (let j = i + 1; j < idleFish.length; j += 1) {
+        const second = idleFish[j];
+        const dx = first.position.x - second.position.x;
+        const dy = first.position.y - second.position.y;
+        const d = Math.hypot(dx, dy);
+
+        if (d > 56) {
+          continue;
+        }
+
+        if (Math.random() < 0.5) {
+          first.setSocial("kiss", second, 1.4);
+          second.setSocial("kiss", first, 1.4);
+        } else {
+          first.setSocial("chase-lead", second, 2);
+          second.setSocial("chase-follow", first, 2);
+        }
+
+        this.socialCooldown = randRange(7, 13);
+        return;
+      }
+    }
+
+    this.socialCooldown = randRange(4, 7);
   }
 
   updateTooltip() {
-    if (!this.hoveredCreature) {
+    if (!this.mouse.inside) {
+      this.hoveredFish = null;
+      this.tooltipEl.classList.remove("visible");
+      return;
+    }
+
+    this.hoveredFish = this.fish.find((fish) => fish.containsPoint(this.mouse.x, this.mouse.y, this.time)) || null;
+    if (!this.hoveredFish) {
       this.tooltipEl.classList.remove("visible");
       return;
     }
 
     const rect = this.canvas.getBoundingClientRect();
-    this.tooltipEl.textContent = this.hoveredCreature.name;
-    this.tooltipEl.style.left = `${rect.left + (this.hoveredCreature.x / BASE_WIDTH) * rect.width}px`;
-    this.tooltipEl.style.top = `${rect.top + ((this.hoveredCreature.y - 10) / BASE_HEIGHT) * rect.height}px`;
+    this.tooltipEl.textContent = this.hoveredFish.name;
+    this.tooltipEl.style.left = `${rect.left + (this.hoveredFish.position.x / BASE_WIDTH) * rect.width}px`;
+    this.tooltipEl.style.top = `${rect.top + ((this.hoveredFish.position.y - 10) / BASE_HEIGHT) * rect.height}px`;
     this.tooltipEl.classList.add("visible");
   }
 
@@ -235,43 +312,31 @@ export default class Aquarium {
     this.frameDelta = deltaTime;
     this.time += deltaTime;
 
-    const cycle = this.snapshot?.cycle ?? this.background.cycle;
-    const cycleSpeed = this.snapshot?.settings?.cycleSpeed ?? this.currentSettings.cycleSpeed;
-    this.background.update(deltaTime, cycleSpeed, cycle);
-    this.particles.setBubbleDensity(this.currentSettings.bubbleDensity);
+    const chestBurst = this.background.update(deltaTime, this.settings.cycleSpeed);
+    if (chestBurst) {
+      this.particles.spawnBubbleBurst(chestBurst.x, chestBurst.y, chestBurst.count);
+    }
+
     this.particles.update(deltaTime, BASE_HEIGHT - 24);
+    this.maybeStartSocialInteraction(deltaTime);
+
+    for (const fish of this.fish) {
+      fish.update(deltaTime, this.fish, {
+        bounds: { width: BASE_WIDTH, height: BASE_HEIGHT },
+        food: this.particles.food,
+        consumeFood: (foodParticle) => {
+          this.particles.consumeFood(foodParticle);
+          this.particles.spawnBubbleBurst(foodParticle.x, foodParticle.y, 3);
+        },
+        isNight: this.background.isNight(),
+        mouse: this.mouse,
+        time: this.time
+      });
+    }
+
+    this.updateTooltip();
     this.render();
-
-    requestAnimationFrame(this.loop);
-  }
-
-  renderSharedEffects(ctx) {
-    if (!this.snapshot) {
-      return;
-    }
-
-    for (const food of this.snapshot.food) {
-      ctx.fillStyle = "#e9d07f";
-      ctx.fillRect(food.x, food.y, 2, 2);
-      ctx.fillStyle = "#956626";
-      ctx.fillRect(food.x, food.y + 2, 2, 1);
-    }
-
-    for (const effect of this.snapshot.effects) {
-      if (effect.type === "ripple" || effect.type === "zap") {
-        ctx.save();
-        ctx.globalAlpha = effect.type === "zap" ? 0.7 : 0.6;
-        ctx.strokeStyle = effect.color || "#bcefff";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      } else if (effect.type === "ink") {
-        ctx.fillStyle = "rgba(14, 16, 28, 0.55)";
-        ctx.fillRect(effect.x - effect.radius, effect.y - effect.radius * 0.6, effect.radius * 2, effect.radius * 1.3);
-      }
-    }
+    this.animationFrame = requestAnimationFrame(this.loop);
   }
 
   render() {
@@ -279,29 +344,19 @@ export default class Aquarium {
     ctx.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
     ctx.imageSmoothingEnabled = false;
 
-    let shakeX = 0;
-    let shakeY = 0;
-    if (this.snapshot?.effects?.some((effect) => effect.type === "shake" && effect.ttl > 0)) {
-      shakeX = randInt(-2, 2);
-      shakeY = randInt(-1, 1);
-    }
-
-    ctx.save();
-    ctx.translate(shakeX, shakeY);
     this.background.render(ctx);
     this.particles.renderAmbient(ctx);
-    this.renderSharedEffects(ctx);
 
-    for (const entity of this.snapshot?.entities || []) {
-      this.creatureRenderers.get(entity.id)?.render(ctx, this.time, {
-        deltaTime: this.frameDelta,
-        hovered: this.hoveredCreature?.id === entity.id
-      });
+    for (const fish of this.fish) {
+      fish.render(ctx, this.time, fish === this.hoveredFish);
     }
 
-    this.cursorSync.render(ctx, this.snapshot?.players || [], this.connectionState.selfId);
-    this.chatOverlay.renderBubbles(ctx, this.snapshot?.players || [], this.connectionState.selfId, this.snapshot?.time || 0);
-    ctx.restore();
+    this.particles.renderRipples(ctx);
+
+    if (this.background.isNight()) {
+      ctx.fillStyle = "rgba(9, 11, 28, 0.22)";
+      ctx.fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
+    }
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);

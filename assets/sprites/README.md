@@ -1,22 +1,3 @@
-Runtime-generated pixel species sprites now live in the renderer, but this folder is organized by species so hand-authored sheets can be dropped in later without reshaping the repo.
+Runtime-generated pixel fish sprites live in code rather than static sheets.
 
-Current subdirectories:
-
-- `shark-great-white`
-- `shark-hammerhead`
-- `jellyfish-moon`
-- `jellyfish-box`
-- `jellyfish-lions-mane`
-- `eel-moray`
-- `eel-garden`
-- `eel-electric`
-- `pufferfish`
-- `seahorse`
-- `clownfish`
-- `manta-ray`
-- `anglerfish`
-- `sea-turtle`
-- `octopus`
-- `swordfish`
-- `starfish`
-- `cursors`
+The renderer composes body masks, fins, tails, eye styles, and color palettes at startup to keep every fish distinct without shipping pre-baked art.
