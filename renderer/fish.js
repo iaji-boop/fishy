@@ -1,13 +1,11 @@
 import {
   TAU,
   Vector2,
-  chance,
   clamp,
   createCanvas,
   distance,
   hsl,
   lerp,
-  pick,
   randRange,
   signOrOne,
   smoothstep
@@ -200,9 +198,6 @@ const EYE_STYLES = [
   { eye: [12, 4], shine: [12, 3] }
 ];
 
-const NAME_START = ["Bloop", "Fin", "Moss", "Pip", "Nova", "Kelp", "Orbit", "Nib", "Tide", "Coral", "Echo", "Sprig"];
-const NAME_END = ["tail", "gleam", "whisk", "drift", "glint", "bloop", "bubble", "flash", "mote", "fizz", "flutter", "ray"];
-
 function drawPixel(grid, x, y, color) {
   if (x < 0 || y < 0 || y >= grid.length || x >= grid[0].length) {
     return;
@@ -332,21 +327,17 @@ function gridToCanvas(grid) {
 }
 
 function createAppearance() {
-  const hue = randRange(0, 360);
-  const accentHue = hue + randRange(22, 96) * (chance(0.5) ? 1 : -1);
-  const bodyMask = pick(BODY_MASKS);
-
   const appearance = {
-    bodyMask,
-    fin: pick(FIN_TYPES),
-    tail: pick(TAIL_TYPES),
-    accentPattern: pick(ACCENT_PATTERNS),
-    eye: pick(EYE_STYLES),
-    body: hsl(hue, randRange(54, 80), randRange(56, 68)),
-    bodyShade: hsl(hue, randRange(48, 72), randRange(34, 46)),
-    belly: hsl(hue + randRange(-8, 12), 70, randRange(68, 84)),
-    accent: hsl(accentHue, 74, randRange(54, 70)),
-    outline: hsl(hue + randRange(-18, 18), 32, randRange(14, 22)),
+    bodyMask: BODY_MASKS[0],
+    fin: FIN_TYPES[0],
+    tail: TAIL_TYPES[0],
+    accentPattern: ACCENT_PATTERNS[0],
+    eye: EYE_STYLES[0],
+    body: hsl(28, 84, 61),
+    bodyShade: hsl(28, 66, 42),
+    belly: hsl(42, 78, 79),
+    accent: hsl(12, 88, 57),
+    outline: hsl(214, 26, 16),
     eyeColor: hsl(214, 33, 10),
     shineColor: hsl(0, 0, 100)
   };
@@ -356,7 +347,7 @@ function createAppearance() {
 }
 
 function createName() {
-  return `${pick(NAME_START)}${pick(NAME_END)}`;
+  return "Fish";
 }
 
 export default class Fish {
@@ -370,10 +361,10 @@ export default class Fish {
     this.stateAge = 0;
     this.wanderAngle = randRange(0, TAU);
     this.bobPhase = randRange(0, TAU);
-    this.maxSpeed = randRange(12, 22);
+    this.maxSpeed = 16;
     this.baseSpeed = this.maxSpeed;
     this.appearance = createAppearance();
-    this.spriteScale = randRange(0.95, 1.25);
+    this.spriteScale = 1;
     this.spriteWidth = 16 * this.spriteScale;
     this.spriteHeight = 10 * this.spriteScale;
     this.fleeTimer = 0;
@@ -381,7 +372,7 @@ export default class Fish {
     this.socialMode = null;
     this.socialTarget = null;
     this.socialTimer = 0;
-    this.restOffset = randRange(-10, 10);
+    this.restOffset = 0;
   }
 
   setSocial(mode, target, duration) {
