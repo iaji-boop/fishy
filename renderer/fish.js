@@ -198,6 +198,73 @@ const EYE_STYLES = [
   { eye: [12, 4], shine: [12, 3] }
 ];
 
+const FISH_VARIANTS = [
+  {
+    name: "Amber Fish",
+    bodyMask: BODY_MASKS[0],
+    fin: FIN_TYPES[0],
+    tail: TAIL_TYPES[0],
+    accentPattern: ACCENT_PATTERNS[0],
+    eye: EYE_STYLES[0],
+    body: hsl(28, 84, 61),
+    bodyShade: hsl(28, 66, 42),
+    belly: hsl(42, 78, 79),
+    accent: hsl(12, 88, 57),
+    outline: hsl(214, 26, 16),
+    spriteScale: 1,
+    baseSpeed: 16,
+    restOffset: 0
+  },
+  {
+    name: "Reef Fish",
+    bodyMask: BODY_MASKS[1],
+    fin: FIN_TYPES[1],
+    tail: TAIL_TYPES[1],
+    accentPattern: ACCENT_PATTERNS[1],
+    eye: EYE_STYLES[1],
+    body: hsl(198, 72, 60),
+    bodyShade: hsl(202, 56, 41),
+    belly: hsl(188, 74, 82),
+    accent: hsl(52, 88, 62),
+    outline: hsl(214, 26, 16),
+    spriteScale: 1.05,
+    baseSpeed: 15,
+    restOffset: -3
+  },
+  {
+    name: "Coral Fish",
+    bodyMask: BODY_MASKS[2],
+    fin: FIN_TYPES[2],
+    tail: TAIL_TYPES[2],
+    accentPattern: ACCENT_PATTERNS[2],
+    eye: EYE_STYLES[2],
+    body: hsl(346, 74, 66),
+    bodyShade: hsl(348, 54, 46),
+    belly: hsl(18, 88, 82),
+    accent: hsl(24, 90, 58),
+    outline: hsl(220, 24, 16),
+    spriteScale: 0.98,
+    baseSpeed: 17,
+    restOffset: 2
+  },
+  {
+    name: "Kelp Fish",
+    bodyMask: BODY_MASKS[3],
+    fin: FIN_TYPES[3],
+    tail: TAIL_TYPES[3],
+    accentPattern: ACCENT_PATTERNS[3],
+    eye: EYE_STYLES[3],
+    body: hsl(144, 44, 60),
+    bodyShade: hsl(148, 34, 39),
+    belly: hsl(58, 46, 80),
+    accent: hsl(226, 66, 67),
+    outline: hsl(214, 24, 14),
+    spriteScale: 1.08,
+    baseSpeed: 14.5,
+    restOffset: 4
+  }
+];
+
 function drawPixel(grid, x, y, color) {
   if (x < 0 || y < 0 || y >= grid.length || x >= grid[0].length) {
     return;
@@ -326,18 +393,18 @@ function gridToCanvas(grid) {
   return canvas;
 }
 
-function createAppearance() {
+function createAppearance(variant) {
   const appearance = {
-    bodyMask: BODY_MASKS[0],
-    fin: FIN_TYPES[0],
-    tail: TAIL_TYPES[0],
-    accentPattern: ACCENT_PATTERNS[0],
-    eye: EYE_STYLES[0],
-    body: hsl(28, 84, 61),
-    bodyShade: hsl(28, 66, 42),
-    belly: hsl(42, 78, 79),
-    accent: hsl(12, 88, 57),
-    outline: hsl(214, 26, 16),
+    bodyMask: variant.bodyMask,
+    fin: variant.fin,
+    tail: variant.tail,
+    accentPattern: variant.accentPattern,
+    eye: variant.eye,
+    body: variant.body,
+    bodyShade: variant.bodyShade,
+    belly: variant.belly,
+    accent: variant.accent,
+    outline: variant.outline,
     eyeColor: hsl(214, 33, 10),
     shineColor: hsl(0, 0, 100)
   };
@@ -346,14 +413,15 @@ function createAppearance() {
   return appearance;
 }
 
-function createName() {
-  return "Fish";
+function createName(variant) {
+  return variant.name;
 }
 
 export default class Fish {
   constructor(id, x, y) {
+    const variant = FISH_VARIANTS[(Math.max(1, id) - 1) % FISH_VARIANTS.length];
     this.id = id;
-    this.name = createName();
+    this.name = createName(variant);
     this.position = new Vector2(x, y);
     this.velocity = Vector2.fromAngle(randRange(0, TAU), randRange(8, 16));
     this.desiredVelocity = this.velocity.clone();
@@ -361,10 +429,10 @@ export default class Fish {
     this.stateAge = 0;
     this.wanderAngle = randRange(0, TAU);
     this.bobPhase = randRange(0, TAU);
-    this.maxSpeed = 16;
+    this.maxSpeed = variant.baseSpeed;
     this.baseSpeed = this.maxSpeed;
-    this.appearance = createAppearance();
-    this.spriteScale = 1;
+    this.appearance = createAppearance(variant);
+    this.spriteScale = variant.spriteScale;
     this.spriteWidth = 16 * this.spriteScale;
     this.spriteHeight = 10 * this.spriteScale;
     this.fleeTimer = 0;
@@ -372,7 +440,7 @@ export default class Fish {
     this.socialMode = null;
     this.socialTarget = null;
     this.socialTimer = 0;
-    this.restOffset = 0;
+    this.restOffset = variant.restOffset;
   }
 
   setSocial(mode, target, duration) {
