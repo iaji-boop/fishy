@@ -160,20 +160,6 @@ function flattenSettingsCounts(settings) {
   return requested;
 }
 
-function sameCounts(left, right) {
-  if (!left || !right) {
-    return false;
-  }
-
-  for (const speciesId of SPECIES_ORDER) {
-    if ((left[speciesId] || 0) !== (right[speciesId] || 0)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 function findNearest(items, x, y, predicate = () => true) {
   let nearest = null;
   let bestDistance = Infinity;
@@ -367,19 +353,12 @@ export class AquariumSimulation {
   }
 
   applySettings(settings) {
-    const nextSettings = normalizeSettings(settings);
-    const nextCounts = flattenSettingsCounts(nextSettings);
-    const currentCounts = flattenSettingsCounts(this.settings);
-    this.settings = nextSettings;
-
-    if (this.entities.length && sameCounts(currentCounts, nextCounts)) {
-      return;
-    }
-
+    this.settings = normalizeSettings(settings);
+    const counts = flattenSettingsCounts(this.settings);
     this.entities = [];
 
     for (const speciesId of SPECIES_ORDER) {
-      const count = nextCounts[speciesId];
+      const count = counts[speciesId];
       for (let index = 0; index < count; index += 1) {
         this.entities.push(spawnEntity(speciesId, index, count));
       }
